@@ -3,7 +3,7 @@ import pandas as pd
 
 tau = 2 * np.pi
 
-def fourier(data_frame, data_col, time_col, period, group_col=None):
+def fourier(data_frame, data_col, time_col, period, group_col=None, weights_col=None):
     wave_vals = data_frame[time_col] * (tau/period)
     wave_vals = pd.concat([
         np.sin(wave_vals).rename('lateral'),
@@ -12,11 +12,24 @@ def fourier(data_frame, data_col, time_col, period, group_col=None):
     wave_vals['lateral'] *= wave_vals[data_col]
     wave_vals['real'] *= wave_vals[data_col]
     wave_vals.drop(columns=[data_col], inplace=True)
+    
+    if weights_col is not None:
+        wave_vals *= data_frame[weights_col].values[:,np.newaxis]
 
     if group_col is not None:
-        wave_vals = wave_vals.join(data_frame[group_col]).groupby(group_col).mean()
+        wave_vals = wave_vals.join(data_frame[group_col]).groupby(group_col)
+        if weights_col is not None:
+            wave_vals = wave_vals.sum()
+            wave_vals /= data_frame.groupby(group_col)[weights_col].sum().values[:,np.newaxis]
+        else:
+            wave_vals = wave_vals.mean()
+        
     else:
-        wave_vals = wave_vals.mean()
+        if weights_col is not None:
+            wave_vals = wave_vals.sum()
+            wave_vals /= data_frame[weights_col].sum()
+        else:
+            wave_vals = wave_vals.mean()
 
     amplitude = np.sqrt((wave_vals**2).sum(axis=1)) * 2
     phase = np.arctan2(wave_vals['lateral'], wave_vals['real']) * (period/tau)
