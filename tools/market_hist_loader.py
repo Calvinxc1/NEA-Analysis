@@ -13,6 +13,7 @@ def load_market_hist(type_ids, region_ids, start_date, end_date, sql_params):
         MarketHist.record_date,
         MarketHist.region_id,
         MarketHist.type_id,
+        MarketHist.volume,
         MarketHist.average,
     )\
         .filter(MarketHist.type_id.in_(type_ids))\
@@ -21,14 +22,17 @@ def load_market_hist(type_ids, region_ids, start_date, end_date, sql_params):
         .filter(MarketHist.record_date <= end_date)
     raw_data = pd.read_sql(query.statement, query.session.bind)
     
-    pivot_cols = {
-        'index': 'record_date',
-        'columns': 'type_id',
-        'values': 'average',
-    }
+    
     market_data = {}
     for region_id, data in raw_data.groupby('region_id'):
-        market_data[region_id] = data[pivot_cols.values()].pivot(**pivot_cols)\
-            .fillna(method='ffill').fillna(method='bfill')
+        market_data[region_id] = {}
+        for values in ['volume', 'average']:
+            pivot_cols = {
+                'index': 'record_date',
+                'columns': 'type_id',
+                'values': values,
+            }
+            market_data[region_id][values] = data[pivot_cols.values()].pivot(**pivot_cols)\
+                .fillna(method='ffill').fillna(method='bfill')
     
     return market_data
